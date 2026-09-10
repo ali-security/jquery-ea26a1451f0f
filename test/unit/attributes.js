@@ -477,7 +477,9 @@ test( "attr(String, Object)", function() {
 test( "attr - extending the boolean attrHandle", function() {
 	expect( 1 );
 	var called = false,
-		_handle = jQuery.expr.attrHandle.checked || $.noop;
+		origAttrHandleHadChecked = "checked" in jQuery.expr.attrHandle,
+		origAttrHandleChecked = jQuery.expr.attrHandle.checked,
+		_handle = origAttrHandleChecked || $.noop;
 	jQuery.expr.attrHandle.checked = function() {
 		called = true;
 		_handle.apply( this, arguments );
@@ -486,6 +488,12 @@ test( "attr - extending the boolean attrHandle", function() {
 	called = false;
 	jQuery( "input" ).attr( "checked" );
 	ok( called, "The boolean attrHandle does not drop custom attrHandles" );
+
+	if ( origAttrHandleHadChecked ) {
+		jQuery.expr.attrHandle.checked = origAttrHandleChecked;
+	} else {
+		delete jQuery.expr.attrHandle.checked;
+	}
 });
 
 test( "attr(String, Object) - Loaded via XML document", function() {
@@ -1475,4 +1483,71 @@ test( "Insignificant white space returned for $(option).val() (#14858)", functio
 
 	val = jQuery( "<option>  test  </option>" ).val();
 	equal( val.length, 4, "insignificant white-space returned for value" );
+});
+
+test( "non-lowercase boolean attribute getters should not crash", function() {
+	expect( 3 );
+
+	var elem = jQuery( "<input checked required autofocus type='checkbox'>" );
+
+	jQuery.each({
+		checked: "Checked",
+		required: "requiRed",
+		autofocus: "AUTOFOCUS"
+	}, function( lowercased, original ) {
+		try {
+			strictEqual( elem.attr( original ), lowercased,
+				"The '" + original + "' attribute getter should return the lowercased name" );
+		} catch ( e ) {
+			ok( false, "The '" + original + "' attribute getter threw" );
+		}
+	});
+});
+
+test( "boolean attrHandle does not recurse on non-lowercase names (gh-3134)", function() {
+	expect( 6 );
+
+	// jQuery.attr() lowercases the name before the boolean getter ever sees it, but
+	// the selector engine looks the getter up by the lowercased name while passing the
+	// name along exactly as it was authored. Keying the handle cache off that raw name
+	// means the getter never removes itself, so it re-enters through jQuery.find.attr
+	// until the stack overflows.
+	var input = jQuery( "<input id='attr-mixed-case' type='checkbox' checked>" )
+		.appendTo("#qunit-fixture")[ 0 ];
+
+	try {
+		strictEqual( jQuery.find.attr( input, "Checked" ), "checked",
+			"jQuery.find.attr() resolves a mixed-case boolean attribute" );
+	} catch ( e ) {
+		ok( false, "jQuery.find.attr() threw for a mixed-case boolean attribute: " + e );
+	}
+
+	try {
+		strictEqual( jQuery.find.attr( input, "CHECKED" ), "checked",
+			"jQuery.find.attr() resolves an upper-case boolean attribute" );
+	} catch ( e ) {
+		ok( false, "jQuery.find.attr() threw for an upper-case boolean attribute: " + e );
+	}
+
+	ok( !( "Checked" in jQuery.expr.attrHandle ) && !( "CHECKED" in jQuery.expr.attrHandle ),
+		"The boolean getter leaves no mixed-case keys behind on jQuery.expr.attrHandle" );
+
+	// ":checkbox" is not valid CSS, so querySelectorAll bails out and the attribute
+	// filter is evaluated by the selector engine itself - the path hitting attrHandle
+	try {
+		strictEqual( jQuery("#attr-mixed-case[Checked]:checkbox").length, 1,
+			"A mixed-case boolean attribute selector matches through the selector engine" );
+	} catch ( e ) {
+		ok( false, "A mixed-case boolean attribute selector threw: " + e );
+	}
+
+	try {
+		ok( jQuery( input ).is("[Checked]:checkbox"),
+			".is() matches a mixed-case boolean attribute without native matchesSelector" );
+	} catch ( e ) {
+		ok( false, ".is() threw for a mixed-case boolean attribute selector: " + e );
+	}
+
+	strictEqual( jQuery( input ).attr("Checked"), "checked",
+		".attr() still returns the lowercased name for a mixed-case boolean attribute" );
 });
