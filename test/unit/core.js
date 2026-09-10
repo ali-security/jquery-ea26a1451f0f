@@ -1103,6 +1103,25 @@ test("jQuery.extend(Object, Object)", function() {
 	deepEqual( options2, options2Copy, "Check if not modified: options2 must not be modified" );
 });
 
+test("jQuery.extend( true, ... ) Object.prototype pollution", function() {
+	expect( 3 );
+
+	var shallow;
+
+	// A source object carrying an enumerable "__proto__" property, as produced
+	// by parsing untrusted JSON, must not reach Object.prototype
+	jQuery.extend( true, {}, JSON.parse( "{\"__proto__\": {\"devMode\": true}}" ) );
+	ok( !( "devMode" in {} ), "Object.prototype not polluted" );
+
+	// The same has to hold for the recursive calls of a deep copy
+	jQuery.extend( true, {}, JSON.parse( "{\"a\": {\"__proto__\": {\"devMode2\": true}}}" ) );
+	ok( !( "devMode2" in {} ), "Object.prototype not polluted through a nested object" );
+
+	// A shallow copy must not swap the target's prototype either
+	shallow = jQuery.extend( {}, JSON.parse( "{\"__proto__\": {\"devMode3\": true}}" ) );
+	ok( !( "devMode3" in shallow ), "The target's prototype was left intact" );
+});
+
 test("jQuery.each(Object,Function)", function() {
 	expect( 23 );
 
