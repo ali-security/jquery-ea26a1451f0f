@@ -1,0 +1,45 @@
+name: seal-build
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node 0.10.48 (the runtime this release was published with)
+        run: |
+          set -e
+          curl -sSLo /tmp/node.tar.gz https://nodejs.org/dist/v0.10.48/node-v0.10.48-linux-x64.tar.gz
+          sudo mkdir -p /opt/node
+          sudo tar xzf /tmp/node.tar.gz -C /opt/node --strip-components=1
+          echo "/opt/node/bin" >> $GITHUB_PATH
+
+      - name: Show toolchain
+        run: |
+          node --version
+          npm --version
+
+      - name: Install dependencies (registry frozen at the 1.11.1 release date)
+        run: |
+          set -e
+          npm config set registry https://:2014-05-01T18%3A05%3A32.863Z@time-machines-npm.sealsecurity.io/
+          npm install
+
+      - name: Build dist from src
+        env:
+          SOURCE_DATE: "2014-05-01T17:42Z"
+        run: node_modules/.bin/grunt "build:all:*" stampdate uglify cdn
+
+      - name: Pack
+        run: npm pack
+
+      - name: Upload tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-tarball
+          path: jquery-1.11.1.tgz
+          if-no-files-found: error

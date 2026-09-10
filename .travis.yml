@@ -1,3 +1,15 @@
 language: node_js
 node_js:
 - '0.10'
+addons:
+  chrome: stable
+before_script:
+# jQuery's QUnit suite needs a PHP-capable origin to serve its ajax fixtures.
+- (php -S 127.0.0.1:8000 -t . > /tmp/php-server.log 2>&1 &)
+- sleep 3
+- python3 -m pip install --user --quiet "selenium<4.26"
+script:
+# Build + lint, as upstream's config did.
+- npm test
+# The unit suite: QUnit driven in headless Chrome against the built files.
+- python3 test/qunit-chrome.py http://127.0.0.1:8000/test/index.html

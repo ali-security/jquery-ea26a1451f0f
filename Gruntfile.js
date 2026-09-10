@@ -122,7 +122,7 @@ module.exports = function( grunt ) {
 						ascii_only: true
 					},
 					banner: "/*! jQuery v<%= pkg.version %> | " +
-						"(c) 2005, <%= grunt.template.today('yyyy') %> jQuery Foundation, Inc. | " +
+						"(c) 2005, 2014 jQuery Foundation, Inc. | " +
 						"jquery.org/license */",
 					compress: {
 						hoist_funs: false,
@@ -139,6 +139,41 @@ module.exports = function( grunt ) {
 
 	// Integrate jQuery specific tasks
 	grunt.loadTasks( "build/tasks" );
+
+	// The release's dist/jquery.js embeds the build timestamp. Pin it from the
+	// environment so a rebuild reproduces the published file byte-for-byte.
+	grunt.registerTask( "stampdate", function() {
+		var file = "dist/jquery.js",
+			date = process.env.SOURCE_DATE;
+
+		if ( date ) {
+			grunt.file.write( file,
+				grunt.file.read( file ).replace( /^ \* Date: .*$/m, " * Date: " + date ) );
+			grunt.log.writeln( "Date stamped as " + date + "." );
+		}
+	});
+
+	// The published release ships dist/cdn copies of the built files, produced by
+	// the jquery-release tool that lives outside this repo. Recreate them here so
+	// a source build carries the same set.
+	grunt.registerTask( "cdn", function() {
+		var version = grunt.config( "pkg.version" ),
+			src = grunt.file.read( "dist/jquery.js" ),
+			map = grunt.file.read( "dist/jquery.min.map" ),
+
+			// CDN copies carry no sourceMappingURL comment
+			min = grunt.file.read( "dist/jquery.min.js" )
+				.replace( /\/\/# sourceMappingURL=jquery\.min\.map$/, "" );
+
+		[ "jquery", "jquery-" + version, "jquery-latest" ].forEach(function( name ) {
+			grunt.file.write( "dist/cdn/" + name + ".js", src );
+			grunt.file.write( "dist/cdn/" + name + ".min.js", min );
+			grunt.file.write( "dist/cdn/" + name + ".min.map",
+				map.replace( /jquery\.min\.js/g, name + ".min.js" )
+					.replace( /"jquery\.js"/g, "\"" + name + ".js\"" ) );
+			grunt.log.writeln( "File 'dist/cdn/" + name + ".min.js' created." );
+		});
+	});
 
 	grunt.registerTask( "bower", "bowercopy" );
 	grunt.registerTask( "lint", [ "jshint", "jscs" ] );
